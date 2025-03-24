@@ -21,8 +21,8 @@ const graph = {
     Iasi: { Vaslui: 92, Neamt: 87 },
     Neamt: { Iasi: 87 }
   };
-
   
+
   function validateInput(start, end) {
     if (!graph[start] || !graph[end]) {
       alert("Cidade de partida ou chegada inválida. Verifique os nomes.");
@@ -30,42 +30,59 @@ const graph = {
     }
     return true;
   }
+
+  // Função para calcular o custo total de um caminho
+function calculateTotalCost(path) {
+  if (!path || path.length < 2) return 0;
+  
+  let totalCost = 0;
+  for (let i = 0; i < path.length - 1; i++) {
+    const current = path[i];
+    const next = path[i + 1];
+    totalCost += graph[current][next];
+  }
+  return totalCost;
+}
   
   // UCS - Busca de Custo Uniforme
   function ucs(start, end) {
-    const queue = [[start, 0, [start]]]; // Agora armazenamos o caminho completo
+    const queue = [[start, 0, [start]]]; // [node, cost, path]
     const visited = new Set();
   
     while (queue.length > 0) {
       queue.sort((a, b) => a[1] - b[1]); // Ordena pelo custo
       const [node, cost, path] = queue.shift();
   
-      if (node === end) return path; // Retorna o caminho completo
+      if (node === end) {
+        return {
+          path: path,
+          cost: cost
+        };
+      }
   
       if (!visited.has(node)) {
         visited.add(node);
         for (const neighbor in graph[node]) {
           const newCost = cost + graph[node][neighbor];
-          const newPath = [...path, neighbor]; // Adiciona o vizinho ao caminho
+          const newPath = [...path, neighbor];
           queue.push([neighbor, newCost, newPath]);
         }
       }
     }
-    return null; // Se não encontrar o caminho
+    return null;
   }
 
 // Busca em profundidade limitada (DLS)
-function dls(start, end, limit, path = [], visited = new Set()) {
+function dls(start, end, limit, path = [], visited = new Set(), cost = 0) {
   path.push(start);
-  visited.add(start);
 
-  if (start === end) return path; // Retorna o caminho se o nó final for encontrado
-
+  if (start === end) return {path: [...path], cost}; // Retorna o caminho se o nó final for encontrado e o custo
   if (limit <= 0) return null; // Retorna null se o limite de profundidade for atingido
+  visited.add(start);
 
   for (const neighbor in graph[start]) {
     if (!visited.has(neighbor)) {
-      const result = dls(neighbor, end, limit - 1, path, visited);
+      const result = dls(neighbor, end, limit - 1, path, visited, cost + graph[start][neighbor]);
       if (result) return result; // Retorna o caminho se encontrado
     }
   }
@@ -76,19 +93,25 @@ function dls(start, end, limit, path = [], visited = new Set()) {
 
   // Função para BFS
   function bfs(start, end) {
-    const queue = [[start]];
+    const queue = [[start, [start]]]; // [node, path]
     const visited = new Set();
   
     while (queue.length > 0) {
-      const path = queue.shift();
-      const node = path[path.length - 1];
+      const [node, path] = queue.shift();
   
-      if (node === end) return path;
+      if (node === end) {
+        return {
+          path: path,
+          cost: calculateTotalCost(path)
+        };
+      }
   
       if (!visited.has(node)) {
         visited.add(node);
         for (const neighbor in graph[node]) {
-          queue.push([...path, neighbor]);
+          if (!visited.has(neighbor)) {
+            queue.push([neighbor, [...path, neighbor]]);
+          }
         }
       }
     }
@@ -96,15 +119,16 @@ function dls(start, end, limit, path = [], visited = new Set()) {
   }
   
   // Função para DFS
-  function dfs(start, end, path = [], visited = new Set()) {
+  function dfs(start, end, path = [], visited = new Set(), cost = 0) {
     path.push(start);
+    if (start === end) return {path: [...path], cost};
+
     visited.add(start);
   
-    if (start === end) return path;
-  
+    
     for (const neighbor in graph[start]) {
       if (!visited.has(neighbor)) {
-        const result = dfs(neighbor, end, path, visited);
+        const result = dfs(neighbor, end, path, visited, cost + graph[start][neighbor]);
         if (result) return result;
       }
     }
@@ -123,36 +147,32 @@ function iddfs(start, end, maxDepth) {
 
 // Busca Gulosa (Greedy Best-First Search)
 function greedyBestFirstSearch(start, end) {
-  const queue = [[start]]; // Fila de caminhos
-  const visited = new Set(); // Conjunto de nós visitados
+  const queue = [[start, [start]]]; // [node, path]
+  const visited = new Set();
 
   while (queue.length > 0) {
-    // Ordena a fila com base na heurística (menor valor primeiro)
-    queue.sort((a, b) => heuristic(a[a.length - 1], end) - heuristic(b[b.length - 1], end));
-    const path = queue.shift(); // Pega o caminho com a menor heurística
-    const node = path[path.length - 1]; // Pega o último nó do caminho
+    // Ordena pela heurística (menor valor primeiro)
+    queue.sort((a, b) => heuristic(a[0], end) - heuristic(b[0], end));
+    const [node, path] = queue.shift();
 
-    if (node === end) return path; // Retorna o caminho se o nó final for encontrado
+    if (node === end) {
+      return {
+        path: path,
+        cost: calculateTotalCost(path)
+      };
+    }
 
     if (!visited.has(node)) {
-      visited.add(node); // Marca o nó como visitado
+      visited.add(node);
       for (const neighbor in graph[node]) {
         if (!visited.has(neighbor)) {
-          queue.push([...path, neighbor]); // Adiciona o vizinho ao caminho
+          queue.push([neighbor, [...path, neighbor]]);
         }
       }
     }
   }
-  return null; // Se não encontrar o caminho
+  return null;
 }
-
-// function runSearch(algorithm) {
-//   const start = document.getElementById('start').value;
-//   const end = document.getElementById('end').value;
-//   if (!validateInput(start, end)) return;
-//   const result = algorithm(start, end);
-//   document.getElementById('result').textContent = result ? result.join(' -> ') : "Caminho não encontrado";
-// }
 
   
   // Função para A*
@@ -175,7 +195,10 @@ function greedyBestFirstSearch(start, end) {
     while (openSet.size > 0) {
         let current = [...openSet].reduce((a, b) => fScore[a] < fScore[b] ? a : b);
 
-        if (current === end) return reconstructPath(cameFrom, current);
+        if (current === end) {
+          const path = reconstructPath(cameFrom, current);
+          return {path, cost: gScore[current]};
+        }
 
         openSet.delete(current);
 
@@ -239,48 +262,64 @@ function heuristic(a, b) {
   }
   
   // Funções para exibir resultados
-  function runBFS() {
-    const start = document.getElementById('start').value;
-    const end = document.getElementById('end').value;
-    const result = bfs(start, end);
-    document.getElementById('result').textContent = result ? result.join(' -> ') : "Caminho não encontrado";
+function displayResult(result) {
+  if (!result) {
+    document.getElementById('result').textContent = "Caminho não encontrado";
+    document.getElementById('cost').textContent = "";
+    return;
   }
   
-  function runDFS() {
-    const start = document.getElementById('start').value;
-    const end = document.getElementById('end').value;
-    const result = dfs(start, end);
-    document.getElementById('result').textContent = result ? result.join(' -> ') : "Caminho não encontrado";
-  }
-  
-  function runAStar() {
-    const start = document.getElementById('start').value;
-    const end = document.getElementById('end').value;
-  
-    if (!validateInput(start, end)) return;
-  
-    const result = aStar(start, end);
-    document.getElementById('result').textContent = result ? result.join(' -> ') : "Caminho não encontrado";
-  }
+  document.getElementById('result').textContent = result.path.join(' -> ');
+  document.getElementById('cost').textContent = `Custo total: ${result.cost} km`;
+}
 
-  function runUCS() { runSearch(ucs); }
-  function runDLS() {
-    const start = document.getElementById('start').value;
-    const end = document.getElementById('end').value;
-    const limit = parseInt(prompt("Digite o limite de profundidade:"), 10) || 3; // Limite padrão = 3
-    const result = dls(start, end, limit);
-    document.getElementById('result').textContent = result ? result.join(' -> ') : "Caminho não encontrado";
-  }
-  function runIDDFS() {
-    const start = document.getElementById('start').value;
-    const end = document.getElementById('end').value;
-    const maxDepth = parseInt(prompt("Digite o limite máximo de profundidade:"), 10) || 10; // Limite padrão = 10
-    const result = iddfs(start, end, maxDepth);
-    document.getElementById('result').textContent = result ? result.join(' -> ') : "Caminho não encontrado";
-  }
-  function runGreedy() {
-    const start = document.getElementById('start').value;
-    const end = document.getElementById('end').value;
-    const result = greedyBestFirstSearch(start, end);
-    document.getElementById('result').textContent = result ? result.join(' -> ') : "Caminho não encontrado";
-  }
+function runBFS() {
+  const start = document.getElementById('start').value;
+  const end = document.getElementById('end').value;
+  const result = bfs(start, end);
+  displayResult(result);
+}
+
+function runDFS() {
+  const start = document.getElementById('start').value;
+  const end = document.getElementById('end').value;
+  const result = dfs(start, end);
+  displayResult(result);
+}
+
+function runUCS() {
+  const start = document.getElementById('start').value;
+  const end = document.getElementById('end').value;
+  const result = ucs(start, end);
+  displayResult(result);
+}
+
+function runDLS() {
+  const start = document.getElementById('start').value;
+  const end = document.getElementById('end').value;
+  const limit = parseInt(prompt("Digite o limite de profundidade:"), 10) || 3;
+  const result = dls(start, end, limit);
+  displayResult(result);
+}
+
+function runIDDFS() {
+  const start = document.getElementById('start').value;
+  const end = document.getElementById('end').value;
+  const maxDepth = parseInt(prompt("Digite o limite máximo de profundidade:"), 10) || 10;
+  const result = iddfs(start, end, maxDepth);
+  displayResult(result);
+}
+
+function runGreedy() {
+  const start = document.getElementById('start').value;
+  const end = document.getElementById('end').value;
+  const result = greedyBestFirstSearch(start, end);
+  displayResult(result);
+}
+
+function runAStar() {
+  const start = document.getElementById('start').value;
+  const end = document.getElementById('end').value;
+  const result = aStar(start, end);
+  displayResult(result);
+}
